@@ -199,17 +199,15 @@ export default {
     return {
       ticker: "",
       filter: "",
-
       tickers: [],
+
       selectedTicker: null,
       graph: [],
       coins: {},
 
-      hints: [],
       standartHints: ["BTC", "ETH", "USDT", "DOGE"],
 
       error: false,
-
       page: 1,
     };
   },
@@ -278,6 +276,9 @@ export default {
       this.tickers
         .filter((t) => t.name === tickerName)
         .forEach((t) => {
+          if (t === this.selectedTicker) {
+            this.graph.push(price);
+          }
           t.price = price;
         });
     },
@@ -300,25 +301,22 @@ export default {
       if (!ticker) {
         return this.standartHints;
       } else {
-        return this.dynamicHints();
-      }
-    },
+        const dynamicHints = [];
 
-    dynamicHints() {
-      let hints = [];
-
-      for (let key in this.coins) {
-        if (
-          this.coins[key].Symbol.includes(this.ticker.toUpperCase()) &&
-          hints.length < 4
-        ) {
-          hints.push(this.coins[key].Symbol);
+        for (let key in this.coins) {
+          if (
+            this.coins[key].Symbol.includes(this.ticker.toUpperCase()) &&
+            dynamicHints.length < 4
+          ) {
+            dynamicHints.push(this.coins[key].Symbol);
+          }
         }
-      }
-      if (hints.length > 0) {
-        return hints;
-      } else {
-        return this.standartHints;
+
+        if (dynamicHints.length > 0) {
+          return dynamicHints;
+        } else {
+          return this.standartHints;
+        }
       }
     },
 
@@ -376,6 +374,7 @@ export default {
         subscribeToTicker(newTicker.name, (newPrice) =>
           this.updateTicker(newTicker.name, newPrice)
         );
+
         this.ticker = "";
       }
     },
