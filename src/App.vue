@@ -59,7 +59,7 @@
           </div>
         </div>
         <button
-          @click="add"
+          @click="add()"
           type="button"
           class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
         >
@@ -190,6 +190,8 @@
 </template>
 
 <script>
+import { subscribeToTicker, unsubscribeFromTicker, getCoins } from "./api";
+
 export default {
   name: "App",
 
@@ -266,19 +268,30 @@ export default {
     pageStateOptions() {
       return {
         page: this.page,
-        filter: this.filter
-      }
-    }
+        filter: this.filter,
+      };
+    },
   },
 
   methods: {
+    updateTicker(tickerName, price) {
+      this.tickers
+        .filter((t) => t.name === tickerName)
+        .forEach((t) => {
+          t.price = price;
+        });
+    },
+
     getFromLocalStorage() {
       const tickersData = localStorage.getItem("cryptonomicon-list");
 
       if (tickersData) {
         this.tickers = JSON.parse(tickersData);
+
         this.tickers.forEach((ticker) => {
-          this.getCurencyData(ticker.name);
+          subscribeToTicker(ticker.name, (newPrice) =>
+            this.updateTicker(ticker.name, newPrice)
+          );
         });
       }
     },
@@ -316,11 +329,9 @@ export default {
     },
 
     async getCoins() {
-      const response = await fetch(
-        `https://min-api.cryptocompare.com/data/all/coinlist?summary=true`
-      );
-      const data = await response.json();
-      this.coins = data.Data;
+      const coins = await getCoins();
+      const returnedCoins = await coins.json();
+      this.coins = returnedCoins.Data;
     },
 
     chechExists() {
@@ -331,22 +342,21 @@ export default {
       }
     },
 
-    getCurencyData(tickerName) {
-      setInterval(async () => {
-        const f = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=55d62b0e1bd28190eb185144b5a37cf24fb039206031b9f89f0d7f814e26afd3`
-        );
-        const data = await f.json();
+    // getCurencyData(tickerName) {
+    //   setInterval(async () => {
+    //     let subscribedTicker = await loadTicker(tickerName);
 
-        this.tickers.find((t) => t.name === tickerName).price =
-          data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+    //     this.tickers.find((t) => t.name === tickerName).price =
+    //       subscribedTicker.USD > 1
+    //         ? subscribedTicker.USD.toFixed(2)
+    //         : subscribedTicker.USD.toPrecision(2);
 
-        if (this.selectedTicker?.name === tickerName) {
-          this.graph.push(data.USD);
-        }
-      }, 2000);
-      this.ticker = "";
-    },
+    //     if (this.selectedTicker?.name === tickerName) {
+    //       this.graph.push(subscribedTicker.USD);
+    //     }
+    //   }, 2000);
+    //   this.ticker = "";
+    // },
 
     add() {
       const newTicker = {
@@ -362,17 +372,21 @@ export default {
 
       if (this.error == false && this.chechExists(newTicker.name) == true) {
         this.tickers = [...this.tickers, newTicker];
-
-        this.getCurencyData(newTicker.name);
         this.filter = "";
+        subscribeToTicker(newTicker.name, (newPrice) =>
+          this.updateTicker(newTicker.name, newPrice)
+        );
+        this.ticker = "";
       }
     },
 
     handleDelete(tickerToRemove) {
-      this.tickers = this.tickers.filter(t => t != tickerToRemove)
+      this.tickers = this.tickers.filter((t) => t != tickerToRemove);
       if (this.selectedTicker === tickerToRemove) {
         this.selectedTicker = null;
       }
+
+      unsubscribeFromTicker(tickerToRemove.name);
     },
 
     select(ticker) {
@@ -398,7 +412,7 @@ export default {
     filter() {
       this.page = 1;
     },
-    
+
     pageStateOptions(value) {
       window.history.pushState(
         null,
